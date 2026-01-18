@@ -9,17 +9,18 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 46119b09044f50a4a9d0a83f94b2d53a, type: 3}
-  m_Name: AK12_HitscanData
+  m_Script: {fileID: 11500000, guid: 9a5ee7f9e9aea7942b73c5cdb5d4d77c, type: 3}
+  m_Name: AK12_ProjectileData
   m_EditorClassIdentifier: 
+  speed: 100
+  gravityMultiplier: 100
+  maxLifetime: 5
   damage: 25
   headshotMultiplier: 2
-  range: 500
+  effectiveRange: 100
   damageFalloff:
-    serializedVersion: 2
     m_Curve:
-    - serializedVersion: 3
-      time: 0
+    - time: 0
       value: 1
       inSlope: 0
       outSlope: -0.5
@@ -27,8 +28,7 @@ MonoBehaviour:
       weightedMode: 0
       inWeight: 0
       outWeight: 0
-    - serializedVersion: 3
-      time: 1
+    - time: 1
       value: 0.5
       inSlope: -0.5
       outSlope: 0
@@ -42,10 +42,5 @@ MonoBehaviour:
   penetrationCount: 0
   penetrationDamageMultiplier: 0.5
   hitLayers:
-    serializedVersion: 2
     m_Bits: 4294967295
   headshotTag: Head
-  useProjectile: 1
-  speed: 100
-  gravityMultiplier: 1
-  maxLifetime: 5

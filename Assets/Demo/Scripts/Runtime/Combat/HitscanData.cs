@@ -35,6 +35,19 @@ namespace Demo.Scripts.Runtime.Combat
         [Tooltip("Tag used to identify headshot colliders")]
         public string headshotTag = "Head";
 
+    [Header("Projectile Physics")]
+        [Tooltip("If true, simulates bullet drop and travel time. If false, uses instant hitscan.")]
+        public bool useProjectile = false;
+
+        [Tooltip("Initial speed of the projectile in m/s")]
+        public float speed = 100f;
+
+        [Tooltip("Gravity multiplier (1 = normal Physics.gravity)")]
+        public float gravityMultiplier = 1f;
+
+        [Tooltip("Maximum lifetime of the projectile in seconds")]
+        public float maxLifetime = 5f;
+
         /// <summary>
         /// Calculate damage at a given distance, applying falloff
         /// </summary>
