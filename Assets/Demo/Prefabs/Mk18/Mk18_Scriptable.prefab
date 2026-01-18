@@ -665,6 +665,7 @@ GameObject:
   - component: {fileID: 5882940409121476925}
   - component: {fileID: -8068247560124432235}
   - component: {fileID: 2151158701131182720}
+  - component: {fileID: 2505281042962590313}
   m_Layer: 0
   m_Name: Mk18_Scriptable
   m_TagString: Untagged
@@ -783,6 +784,28 @@ Animator:
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorStateOnDisable: 0
   m_WriteDefaultValuesOnDisable: 0
+--- !u!114 &2505281042962590313
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8542894136583626980}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6c96ce24fc717b441bb3b872ac238795, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  hitscanData: {fileID: 11400000, guid: a5849a1a5c6eddf4aa46f0d80fa4a2bc, type: 2}
+  firePoint: {fileID: 0}
+  hitEffectPrefab: {fileID: 0}
+  muzzleFlashPrefab: {fileID: 0}
+  drawDebugRays: 1
+  debugRayColorHit: {r: 0, g: 1, b: 0, a: 1}
+  debugRayColorMiss: {r: 1, g: 0, b: 0, a: 1}
+  debugRayColorHeadshot: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  debugRayLifetime: 100
+  clearDebugRaysKey: 99
 --- !u!1001 &2942192950500416284
 PrefabInstance:
   m_ObjectHideFlags: 0

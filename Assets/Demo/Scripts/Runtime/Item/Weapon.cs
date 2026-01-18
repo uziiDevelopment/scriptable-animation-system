@@ -63,6 +63,9 @@ namespace Demo.Scripts.Runtime.Item
         public event Action<int, int> OnAmmoChanged;
         public event Action<WeaponState> OnStateChanged;
 
+        // Event for combat system (hitscan/projectile)
+        public event Action OnWeaponFired;
+
         // Public properties for UI
         public WeaponState CurrentState => _weaponState;
         public int CurrentAmmo => _currentAmmo;
@@ -337,6 +340,9 @@ namespace Demo.Scripts.Runtime.Item
             {
                 _recoilPattern.OnFireStart();
             }
+
+            // Notify combat system (hitscan/projectile)
+            OnWeaponFired?.Invoke();
 
             if (_recoilAnimation.fireMode == FireMode.Semi)
             {
