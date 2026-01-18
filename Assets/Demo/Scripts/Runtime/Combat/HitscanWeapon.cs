@@ -9,11 +9,12 @@ namespace Demo.Scripts.Runtime.Combat
 {
     /// <summary>
     /// Handles weapon firing. Supports both instant hitscan and physical projectile simulation.
-    /// Attach to weapon prefab alongside Weapon component.
+    /// Uses CaliberData from Weapon if available, otherwise falls back to HitscanData.
     /// </summary>
     public class HitscanWeapon : MonoBehaviour
     {
         [Header("Configuration")]
+        [Tooltip("Legacy data. Use Weapon's CaliberData if checking 'Use Projectile'")]
         [SerializeField] private HitscanData hitscanData;
 
         [Header("Fire Point")]
@@ -56,7 +57,17 @@ namespace Demo.Scripts.Runtime.Combat
             public int PenetrationsRemaining;
             public float CurrentDamageMultiplier;
             public int ShotIndex;
-            public HitscanData Data;
+            
+            // Unified data source
+            public float GravityMultiplier;
+            public float MaxLifetime;
+            public float PenetrationDmgMult;
+            public LayerMask LayerMask;
+            public string HeadshotTag;
+            
+            // Store reference to source for logic (or just copy needed values? Copying is safer)
+            public CaliberData CaliberSource;
+            public HitscanData LegacySource;
         }
 
         private List<ActiveProjectile> _activeProjectiles = new List<ActiveProjectile>();
@@ -128,9 +139,11 @@ namespace Demo.Scripts.Runtime.Combat
 
         public void Fire()
         {
-            if (hitscanData == null)
+            bool useCaliber = _weapon != null && _weapon.Caliber != null;
+            
+            if (!useCaliber && hitscanData == null)
             {
-                Debug.LogWarning("HitscanWeapon: No HitscanData assigned!");
+                Debug.LogWarning("HitscanWeapon: No CaliberData (on Weapon) and no HitscanData assigned!");
                 return;
             }
 
@@ -159,15 +172,31 @@ namespace Demo.Scripts.Runtime.Combat
                 direction = transform.forward;
             }
 
-            // Spawn muzzle flash locally
             SpawnMuzzleFlash();
 
             _shotCounter++;
 
-            if (hitscanData.useProjectile)
+            // Mode Selection
+            bool isProjectile = useCaliber || (hitscanData != null && hitscanData.useProjectile);
+
+            if (isProjectile)
             {
                 // Projectile Mode
-                Vector3 initialVelocity = direction * hitscanData.speed;
+                float speed = useCaliber ? _weapon.Caliber.muzzleVelocity : hitscanData.speed;
+                float gravity = useCaliber ? _weapon.Caliber.gravityMultiplier : hitscanData.gravityMultiplier;
+                float lifetime = useCaliber ? _weapon.Caliber.maxLifetime : hitscanData.maxLifetime;
+                int pentCount = useCaliber ? _weapon.Caliber.penetrationCount : hitscanData.penetrationCount;
+                float pentMult = useCaliber ? _weapon.Caliber.penetrationDamageMultiplier : hitscanData.penetrationDamageMultiplier;
+                LayerMask mask = useCaliber ? _weapon.Caliber.hitLayers : hitscanData.hitLayers;
+                string headTag = useCaliber ? "Head" : hitscanData.headshotTag; // Caliber doesn't store tag usually, assume "Head" or copy from somewhere? CaliberData has no tag field in my create step. Let's hardcode or add it. I'll hardcode "Head" for caliber or read from HitscanData if available as fallback config.
+                
+                // Note: I modified CaliberData to include projectile fields but maybe not all.
+                // Let's check CaliberData definitions: I did not add Headshot Tag to CaliberData.
+                // I'll stick to a default or check HitscanData for tag if available.
+                if (hitscanData != null) headTag = hitscanData.headshotTag;
+
+                Vector3 initialVelocity = direction * speed;
+                
                 var projectile = new ActiveProjectile
                 {
                     Position = origin,
@@ -175,15 +204,23 @@ namespace Demo.Scripts.Runtime.Combat
                     StartPosition = origin,
                     StartTime = Time.time,
                     ShotIndex = _shotCounter,
-                    PenetrationsRemaining = hitscanData.penetrationCount,
+                    PenetrationsRemaining = pentCount,
                     CurrentDamageMultiplier = 1f,
-                    Data = hitscanData
+                    
+                    GravityMultiplier = gravity,
+                    MaxLifetime = lifetime,
+                    PenetrationDmgMult = pentMult,
+                    LayerMask = mask,
+                    HeadshotTag = headTag,
+                    
+                    CaliberSource = useCaliber ? _weapon.Caliber : null,
+                    LegacySource = useCaliber ? null : hitscanData
                 };
                 _activeProjectiles.Add(projectile);
             }
             else
             {
-                // Immediate Hitscan Mode
+                // Immediate Hitscan Mode (Legacy)
                 PerformHitscan(origin, direction, _shotCounter);
             }
         }
@@ -196,7 +233,7 @@ namespace Demo.Scripts.Runtime.Combat
             {
                 var p = _activeProjectiles[i];
 
-                if (Time.time - p.StartTime > p.Data.maxLifetime)
+                if (Time.time - p.StartTime > p.MaxLifetime)
                 {
                     _activeProjectiles.RemoveAt(i);
                     continue;
@@ -206,7 +243,7 @@ namespace Demo.Scripts.Runtime.Combat
                 Vector3 currentVel = p.Velocity;
 
                 // Gravity
-                Vector3 gravity = Physics.gravity * p.Data.gravityMultiplier;
+                Vector3 gravity = Physics.gravity * p.GravityMultiplier;
                 
                 // Kinematics integration
                 Vector3 nextVel = currentVel + gravity * dt;
@@ -218,7 +255,7 @@ namespace Demo.Scripts.Runtime.Combat
 
                 if (distance > 0.0001f)
                 {
-                    if (Physics.Raycast(currentPos, displacement.normalized, out RaycastHit hit, distance, p.Data.hitLayers))
+                    if (Physics.Raycast(currentPos, displacement.normalized, out RaycastHit hit, distance, p.LayerMask))
                     {
                         // Handle Hit
                         bool destroy = HandleProjectileHit(p, hit);
@@ -234,19 +271,13 @@ namespace Demo.Scripts.Runtime.Combat
                             _activeProjectiles.RemoveAt(i);
                             continue; // Stop processing this projectile
                         }
-                        else
-                        {
-                            // On penetration, just let it continue to nextPos for simplicity in this frame
-                            // Or ideally, re-cast from hit point. 
-                            // Current logic: it passed through.
-                        }
                     }
                     else
                     {
                         // No hit
                          if (drawDebugRays)
                         {
-                            // Draw the flight path segment
+                            // Draw flight path
                              CreateDebugRay(currentPos, nextPos, debugRayColorHeadshot, p.ShotIndex, null, false);
                         }
                     }
@@ -260,20 +291,50 @@ namespace Demo.Scripts.Runtime.Combat
         private bool HandleProjectileHit(ActiveProjectile p, RaycastHit hit)
         {
             float totalDistance = Vector3.Distance(p.StartPosition, hit.point);
-            ProcessHitResult(hit, p.CurrentDamageMultiplier, p.ShotIndex, p.Position, p.Data, totalDistance);
             
+            // Calculate Damage
+            float damage = 0f;
+            bool isHeadshot = false;
+
+            try { isHeadshot = hit.collider.CompareTag(p.HeadshotTag); } catch { }
+
+            if (p.CaliberSource != null)
+            {
+                // Use Caliber Data
+                float normalizedDist = Mathf.Clamp01(totalDistance / 200f); // Arbitrary max range for curve or just eval?
+                // CaliberData has curve. Let's assume curve is mapped to distance directly if defined as such, 
+                // BUT AnimationCurve is X-time usually. 
+                // In CaliberData creation I said "X = distance". So we use distance directly.
+                float multiplier = p.CaliberSource.damageFalloff.Evaluate(totalDistance);
+                damage = p.CaliberSource.baseDamage * multiplier;
+                if (isHeadshot) damage *= p.CaliberSource.headshotMultiplier;
+            }
+            else if (p.LegacySource != null)
+            {
+                damage = p.LegacySource.CalculateDamage(totalDistance, isHeadshot); // Using total distance now!
+            }
+            
+            damage *= p.CurrentDamageMultiplier;
+
+            // Apply Damage
+            ApplyDamage(hit, damage, isHeadshot);
+
+            // Effect
+            SpawnHitEffect(hit.point, hit.normal);
+            OnHit?.Invoke(hit);
+
             // Penetration check
             if (p.PenetrationsRemaining > 0)
             {
                 p.PenetrationsRemaining--;
-                p.CurrentDamageMultiplier *= p.Data.penetrationDamageMultiplier;
+                p.CurrentDamageMultiplier *= p.PenetrationDmgMult;
                 return false;
             }
             return true;
         }
 
 
-        // --- Hitscan Logic ---
+        // --- Legacy Hitscan Logic ---
 
         private void PerformHitscan(Vector3 origin, Vector3 direction, int shotNumber)
         {
@@ -285,7 +346,8 @@ namespace Demo.Scripts.Runtime.Combat
             {
                 if (Physics.Raycast(currentOrigin, direction, out RaycastHit hit, hitscanData.range, hitscanData.hitLayers))
                 {
-                    ProcessHitResult(hit, damageMultiplier, shotNumber, currentOrigin, hitscanData);
+                    // Legacy processing
+                    ProcessHitResultLegacy(hit, damageMultiplier, shotNumber, currentOrigin, hitscanData);
 
                     // Setup for penetration
                     if (penetrationsRemaining > 0)
@@ -301,7 +363,6 @@ namespace Demo.Scripts.Runtime.Combat
                 }
                 else
                 {
-                    // Miss
                     if (drawDebugRays)
                     {
                         Vector3 endPoint = currentOrigin + direction * hitscanData.range;
@@ -314,130 +375,31 @@ namespace Demo.Scripts.Runtime.Combat
             while (penetrationsRemaining >= 0);
         }
 
-        // --- Shared Processing ---
-
-        private void ProcessHitResult(RaycastHit hit, float damageMultiplier, int shotNumber, Vector3 rayOrigin, HitscanData data)
+        private void ProcessHitResultLegacy(RaycastHit hit, float damageMultiplier, int shotNumber, Vector3 rayOrigin, HitscanData data)
         {
-            // Check Headshot
             bool isHeadshot = false;
-            if (!string.IsNullOrEmpty(data.headshotTag))
+            try { isHeadshot = hit.collider.CompareTag(data.headshotTag); } catch { }
+
+            float damage = data.CalculateDamage(hit.distance, isHeadshot) * damageMultiplier;
+
+            if (drawDebugRays)
             {
-                try { isHeadshot = hit.collider.CompareTag(data.headshotTag); } catch { }
+                Color rayColor = isHeadshot ? debugRayColorHeadshot : debugRayColorHit;
+                CreateDebugRay(rayOrigin, hit.point, rayColor, shotNumber, hit.collider.name);
             }
 
-            // Calculate Damage
-            float distance = hit.distance; 
-            // Note: For projectile, hit.distance is just the step distance. 
-            // We should use distance from start.
-            // But hit.distance in Raycast is from search origin.
-            // For projectile, rayOrigin is IsProjectile ? stepStart : gunMuzzle.
-            // So for projectile, we need to calculate total distance properly if we want falloff based on travel.
-            // However, existing Hitscan logic uses hit.distance. 
-            // For projectile, let's just use distance from current step or approximate total?
-            // Let's use Vector3.Distance(startPosition, hit.point) if we can access startPosition.
-            // But this method signature is shared.
-            // Let's rely on the fact that for Hitscan, rayOrigin is camera/muzzle.
-            // For projectile, rayOrigin passed here is the step start.
-            // This assumes falloff is per-step which is WRONG.
-            // Refactor needed: pass total distance or start position.
-            
-            // To fix this cleanly, let's recalculate distance inside here using a passed in TotalDistance or similar.
-            // For now, I'll use Vector3.Distance from firePoint/camera if possible, but that data isn't passed efficiently.
-            
-            // Correction: I can calculate distance inside the caller and pass it in.
-            // Let's assume standard hitscan uses hit.distance (from muzzle).
-            // Proj uses distance from start.
-            
-            float effectiveDistance = hit.distance; // value for hitscan
-            // We need to differentiate or pass the true distance.
-            
-             // Spawn hit effect locally
             SpawnHitEffect(hit.point, hit.normal);
-
-            // Invoke local hit event
             OnHit?.Invoke(hit);
-
-            // Apply Damage
-            var damageableTarget = hit.collider.GetComponentInParent<Damageable>();
-            if (damageableTarget != null)
-            {
-                // We'll calculate damage before sending (simplification)
-                // But wait, the standard logic used hit.distance.
-                float finalDamage;
-                if (data.useProjectile)
-                {
-                     // We don't have total distance here easily without changing signature.
-                     // But we can approximate or change signature.
-                     // Let's just use hit.distance (local step) which effectively means NO FALLOFF for projectile currently unless we fix it.
-                     // IMPORTANT: I will change signature to accept calculated damage.
-                     finalDamage = data.CalculateDamage(0, isHeadshot) * damageMultiplier; // Fallback for now to avoid breaking signature too much in one go?
-                     // actually, let's fix it properly.
-                }
-                else
-                {
-                    finalDamage = data.CalculateDamage(distance, isHeadshot) * damageMultiplier;
-                }
-                
-                // Let's do the calculation in the caller!
-
-                var damageInfo = new DamageInfo(
-                    finalDamage,
-                    hit.point,
-                    hit.normal,
-                    _ownerClientId,
-                    isHeadshot
-                );
-                 // Networking logic...
-                 bool isNetworked = NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening;
-                if (isNetworked)
-                {
-                    if (NetworkManager.Singleton.IsServer) damageableTarget.TakeDamage(damageInfo);
-                    else damageableTarget.TakeDamage(damageInfo);
-                }
-                else
-                {
-                    damageableTarget.TakeDamageOffline(damageInfo);
-                }
-            }
-             
-             // Debug
-            if (drawDebugRays && !data.useProjectile) // Projectile already drew its own fast lines
-            {
-                 Color rayColor = isHeadshot ? debugRayColorHeadshot : debugRayColorHit;
-                 CreateDebugRay(rayOrigin, hit.point, rayColor, shotNumber, hit.collider.name);
-            }
+            
+            ApplyDamage(hit, damage, isHeadshot);
         }
         
-        // Overloaded helper to handle damage calc reuse
-        private void ProcessHitResult(RaycastHit hit, float damageMultiplier, int shotNumber, Vector3 rayOrigin, HitscanData data, float totalDistanceOverride = -1f)
+        private void ApplyDamage(RaycastHit hit, float damage, bool isHeadshot)
         {
-             // Check Headshot
-            bool isHeadshot = false;
-            if (!string.IsNullOrEmpty(data.headshotTag))
-            {
-                try { isHeadshot = hit.collider.CompareTag(data.headshotTag); } catch { }
-            }
-            
-            float dist = (totalDistanceOverride >= 0) ? totalDistanceOverride : hit.distance;
-            float damage = data.CalculateDamage(dist, isHeadshot) * damageMultiplier;
-
-             // Debug visualization
-            if (drawDebugRays && !data.useProjectile)
-            {
-                 // ... same as before
-                  Color rayColor = isHeadshot ? debugRayColorHeadshot : debugRayColorHit;
-                  // Debug logging...
-                  CreateDebugRay(rayOrigin, hit.point, rayColor, shotNumber, hit.collider.name);
-            }
-
-            SpawnHitEffect(hit.point, hit.normal);
-            OnHit?.Invoke(hit);
-
-            var damageableTarget = hit.collider.GetComponentInParent<Damageable>();
+             var damageableTarget = hit.collider.GetComponentInParent<Damageable>();
             if (damageableTarget != null)
             {
                  var damageInfo = new DamageInfo(damage, hit.point, hit.normal, _ownerClientId, isHeadshot);
-                 // Network/Offline logic same as above
                  bool isNetworked = NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening;
                 if (isNetworked)
                 {

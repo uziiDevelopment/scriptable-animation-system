@@ -60,7 +60,7 @@ MonoBehaviour:
   overrideController: {fileID: 9100000, guid: b09d8a0688c5abe42998a0987f3f1210, type: 2}
   equipMotion: {fileID: 11400000, guid: b11b46638e8719941a429aa33657277d, type: 2}
   unEquipMotion: {fileID: 11400000, guid: 6e3ba419dec1a754b9c447a8fc1f9b1f, type: 2}
-  fieldOfView: 80
+  fieldOfView: 70
   reloadClip: {fileID: 11400000, guid: af1a453c3fd68ea41896bf9a9f14d86e, type: 2}
   cameraReloadAnimation: {fileID: 11400000, guid: d0e6b89193ed03948a4786754f2dc107,
     type: 2}
@@ -75,6 +75,7 @@ MonoBehaviour:
   supportsAuto: 1
   supportsBurst: 0
   burstLength: 0
+  fireSound: {fileID: 8300000, guid: 0089ef4507c843540bf8243afd0e22cd, type: 3}
   barrelAttachments:
     attachments:
     - {fileID: 6012212012538426434}
@@ -91,7 +92,8 @@ MonoBehaviour:
     - {fileID: 3910950344443100400}
   - attachments:
     - {fileID: 7297927594036225385}
-  ammoData: {fileID: 0}
+  caliberData: {fileID: 11400000, guid: e252ce7129568344a84d1d5e18311cce, type: 2}
+  ammoData: {fileID: 11400000, guid: d3a31fc6cd2d21d459cb34d9606396d8, type: 2}
 --- !u!114 &4348425590622240509
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -117,7 +119,7 @@ AudioSource:
   serializedVersion: 4
   OutputAudioMixerGroup: {fileID: 0}
   m_audioClip: {fileID: 0}
-  m_Resource: {fileID: 8300000, guid: eba18c27b12982840af2ff1f0f505612, type: 3}
+  m_Resource: {fileID: 8300000, guid: 0089ef4507c843540bf8243afd0e22cd, type: 3}
   m_PlayOnAwake: 0
   m_Volume: 1
   m_Pitch: 1

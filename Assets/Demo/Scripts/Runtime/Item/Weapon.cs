@@ -38,6 +38,12 @@ namespace Demo.Scripts.Runtime.Item
         [SerializeField] private bool supportsBurst;
         [SerializeField] private int burstLength;
 
+        [Header("Audio")]
+        [SerializeField] private AudioClip fireSound;
+        [Tooltip("Random pitch variation for auto-fire (prevents phasing)")]
+        [SerializeField] [Range(0f, 0.2f)] private float audioPitchRandomness = 0.05f;
+        private AudioSource _audioSource;
+
         [Header("Attachments")]
 
         [SerializeField]
@@ -50,7 +56,10 @@ namespace Demo.Scripts.Runtime.Item
         private List<AttachmentGroup<ScopeAttachment>> scopeGroups = new List<AttachmentGroup<ScopeAttachment>>();
 
         [Header("Ammo")]
+        [SerializeField] private CaliberData caliberData;
         [SerializeField] private WeaponAmmoData ammoData;
+
+        public CaliberData Caliber => caliberData;
 
         // Ammo runtime state (persists between equip/unequip)
         private WeaponState _weaponState = WeaponState.Ready;
@@ -157,6 +166,18 @@ namespace Demo.Scripts.Runtime.Item
 
             _fpsAnimator = parent.GetComponent<FPSAnimator>();
             _fpsAnimatorEntity = GetComponent<FPSAnimatorEntity>();
+
+            // Audio Logic
+            _audioSource = GetComponent<AudioSource>();
+            if (_audioSource == null)
+            {
+                // Optionally add one if missing, or user must add it.
+                // For a framework, it's safer to just add it if missing to avoid null ref, 
+                // but usually user should configure. Let's add it dynamically if missing.
+                _audioSource = gameObject.AddComponent<AudioSource>();
+                _audioSource.spatialBlend = 1f; // 3D sound
+                _audioSource.playOnAwake = false;
+            }
 
             _fpsController = parent.GetComponent<FPSController>();
             _weaponAnimator = GetComponentInChildren<Animator>();
@@ -320,6 +341,12 @@ namespace Demo.Scripts.Runtime.Item
                     _currentAmmo = 0;
                     SetState(WeaponState.Empty);
                 }
+            }
+
+            // Play Fire Sound
+            if (_audioSource != null && fireSound != null)
+            {
+                _audioSource.PlayOneShot(fireSound);
             }
 
             if (_weaponAnimator != null)
