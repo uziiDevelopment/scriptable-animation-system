@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace Demo.Scripts.Runtime.Item
 {
-    [CreateAssetMenu(menuName = "Demo/Weapon Ammo Data")]
+    [CreateAssetMenu(menuName = "KINEMATION/FPS Animator General/Weapon Ammo Data")]
     public class WeaponAmmoData : ScriptableObject
     {
         [Header("Magazine")]
